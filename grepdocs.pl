@@ -186,7 +186,8 @@ our $VERSION = "1.20260526.0";
 my $verbose = 0;
 my $config_file = catfile( ($ENV{"HOME"}, ".config"), "grepdocs.ini");
 # Valid doc file extensions to search.
-my $fileext_regex = join("|", qw(.md .markdown .txt));
+my $fileext_regex = join("|", qw(.md .markdown .txt .yaml .yml .sh .bash .conf
+                                 .j2 .json .rst));
 my $filter = "";
 # Default ini config.
 my $default_config = Config::Tiny->new({
@@ -270,7 +271,8 @@ sub main() {
       }
 
       debug(4, "Search file content: $file");
-      open(my $fh, '<', $file) or die "Cannot open '$file': $OS_ERROR\n";
+      open(my $fh, '<', $file) or
+        die "Cannot open '$file': $OS_ERROR";
       while (my $line = <$fh>) {
         if ($line =~ /$search_for/i) {
           debug("Content match");
@@ -308,7 +310,8 @@ sub main() {
     }
     debug("Exec command. bye bye");
     debug(2, "cmd: @cmd");
-    exec { $cmd[0] } @cmd or die "Cannot exec edit command: $OS_ERROR";
+    exec { $cmd[0] } @cmd or
+      die "Cannot exec edit command: $OS_ERROR";
   }
 }
 
@@ -344,7 +347,8 @@ sub get_files {
   my @ret;
 
   debug(2, "Walk '$dir'");
-  opendir(my $dh, $dir) || die "Cannot open dir '$dir': $OS_ERROR";
+  opendir(my $dh, $dir) or
+    die "Cannot open dir '$dir': $OS_ERROR";
   foreach my $file (readdir($dh)) {
     next if (grep(/^$file$/, (".",  "..", ".git")));
     # Get abs_path for this file.
