@@ -13,14 +13,187 @@ use File::Basename qw(basename);
 use File::Spec::Functions qw(catfile);
 use Getopt::Long qw(:config bundling);
 
-our $VERSION = "1.20260217.0";
-my $config_file = catfile( ($ENV{"HOME"}, ".config"), "grepdocs.conf");
-my $opt_print_default_config = 0;
-my $opt_edit = 0;
+# Inline module Config::Tiny.
+{
+  # Config::Tiny - Read/Write .ini style files with as little code as possible.
+  package Config::Tiny;
+
+  use strict;
+  use 5.008001; # For the utf8 stuff.
+  our $VERSION = '2.30';
+
+  BEGIN {
+    $Config::Tiny::errstr  = '';
+  }
+
+  # Create an object.
+  sub new { return bless defined $_[1] ? $_[1] : {}, $_[0] }
+
+  # Create an object from a file.
+  sub read
+  {
+    my($class)           = ref $_[0] ? ref shift : shift;
+    my($file, $encoding) = @_;
+
+    return $class ->
+      _error('No file name provided') if (! defined $file || ($file eq '') );
+
+    # Slurp in the file.
+    $encoding = $encoding ? "<:$encoding" : '<';
+    local $/  = undef;
+
+    open(my $CFG, $encoding, $file) or return $class ->
+      _error( "Failed to open file '$file' for reading: $!" );
+    my $contents = <$CFG>;
+    close($CFG );
+
+    return $class ->
+      _error("Reading from '$file' returned undef") if (! defined $contents);
+
+    return $class -> read_string( $contents );
+  }
+
+  # Create an object from a string.
+  sub read_string
+  {
+    my($class) = ref $_[0] ? ref shift : shift;
+    my($self)  = bless {}, $class;
+
+    return undef unless defined $_[0];
+
+    # Parse the file.
+    my $ns      = '_';
+    my $counter = 0;
+
+    foreach ( split /(?:\015{1,2}\012|\015|\012)/, shift )
+    {
+      $counter++;
+
+      # Skip comments and empty lines.
+      next if /^\s*(?:\#|\;|$)/;
+
+      # Remove inline comments.
+      s/\s\;\s.+$//g;
+
+      # Handle section headers.
+      if ( /^\s*\[\s*(.+?)\s*\]\s*$/ )
+      {
+        # Create the sub-hash if it doesn't exist.
+        # Without this sections without keys will not
+        # appear at all in the completed struct.
+        $self->{$ns = $1} ||= {};
+        next;
+      }
+
+      # Handle properties.
+      if ( /^\s*([^=]+?)\s*=\s*(.*?)\s*$/ )
+      {
+        if ( substr($1, -2) eq '[]' )
+        {
+          my $k = substr $1, 0, -2;
+          $self->{$ns}->{$k} ||= [];
+          return $self ->
+            _error ("Can't mix arrays and scalars at line $counter")
+              unless ref $self->{$ns}->{$k} eq 'ARRAY';
+          push @{$self->{$ns}->{$k}}, $2;
+          next;
+        }
+        $self->{$ns}->{$1} = $2;
+        next;
+      }
+
+      return $self -> _error( "Syntax error at line $counter: '$_'" );
+    }
+
+    return $self;
+  }
+
+  # Save an object to a file.
+  sub write
+  {
+    my($self)            = shift;
+    my($file, $encoding) = @_;
+
+    return $self ->
+      _error('No file name provided') if (! defined $file or ($file eq '') );
+
+    $encoding = $encoding ? ">:$encoding" : '>';
+
+    # Write it to the file.
+    my($string) = $self->write_string;
+
+    return undef unless defined $string;
+
+    open(my $CFG, $encoding, $file) or return $self ->
+      _error("Failed to open file '$file' for writing: $!");
+    print $CFG $string;
+    close($CFG);
+
+    return 1;
+
+  }
+
+  # Save an object to a string.
+  sub write_string
+  {
+    my($self)     = shift;
+    my($contents) = '';
+
+    for my $section ( sort {
+      (($b eq '_') <=> ($a eq '_')) || ($a cmp $b)
+      } keys %$self )
+    {
+      # Check for several known-bad situations with the section
+      # 1. Leading whitespace
+      # 2. Trailing whitespace
+      # 3. Newlines in section name.
+      return $self ->
+        _error("Illegal whitespace in section name '$section'")
+          if $section =~ /(?:^\s|\n|\s$)/s;
+
+      my $block = $self->{$section};
+      $contents .= "\n" if length $contents;
+      $contents .= "[$section]\n" unless $section eq '_';
+
+      for my $property ( sort keys %$block )
+      {
+        return $self ->
+          _error("Illegal newlines in property '$section.$property'")
+            if $block->{$property} =~ /(?:\012|\015)/s;
+
+        if (ref $block->{$property} eq 'ARRAY') {
+          for my $element ( @{$block->{$property}} )
+          {
+            $contents .= "${property}[]=$element\n";
+          }
+          next;
+        }
+        $contents .= "$property=$block->{$property}\n";
+      }
+    }
+
+    return $contents;
+
+  }
+
+  # Error handling.
+  sub errstr { $Config::Tiny::errstr }
+  sub _error { $Config::Tiny::errstr = $_[1]; undef }
+}
+
+# Start grepdocs.
+our $VERSION = "1.20260526.0";
 my $verbose = 0;
+my $config_file = catfile( ($ENV{"HOME"}, ".config"), "grepdocs.ini");
 # Valid doc file extensions to search.
 my $fileext_regex = join("|", qw(.md .markdown .txt));
 my $filter = "";
+# Default ini config.
+my $default_config = Config::Tiny->new({
+  "MyDocs" => { "dir" => "/path/to/git/mydocs/docs" },
+  "Title" => { "dir" => "/path/to/docs/dir" },
+  "Version" => { "v" => 1 },
+});
 
 
 sub usage() {
@@ -45,6 +218,8 @@ EOL
 
 sub main() {
   # Args
+  my $opt_print_default_config = 0;
+  my $opt_edit = 0;
   GetOptions (
     'edit|e' => \$opt_edit,
     'config=s' => \$config_file,
@@ -57,12 +232,7 @@ sub main() {
   debug(4, "OSNAME $OSNAME");
 
   if ($opt_print_default_config) {
-    print("A Title:/path/to/docs/dir\n");
-    print("Second Title:/another/path/to/docs\n");
-    print("Third:/a/path/with/colon/C:/is/valid\n");
-    print("# Line commented out:/nowhere/none\n");
-    print("Everything after the first colon is the path:C:\\\\path\n");
-    print("The title cannot contain a colon:/sorry\n");
+    print($default_config->write_string());
     exit 0;
   }
 
@@ -146,15 +316,22 @@ sub main() {
 sub get_config {
   my @dirs = ();
   debug("Parse config");
-  open(my $fh, "<", $config_file) or
-    die "Cannot open config: '$config_file': $OS_ERROR\n";
-  while (my $line = <$fh>) {
-    chomp($line);
-    # Skip comments.
-    next if $line =~ /^\s*#/;
-    # Grab the first item as title. Everything else is the dir path.
-    my ($title, $dir) = split(/:/, $line, 2);
+  my $ini_config = Config::Tiny->read($config_file) or
+    die "Error: Config file: " . Config::Tiny->errstr;
+
+  my $conf_ver = $ini_config->{"Version"}->{"v"} or
+    die "Error: Config file: No valid Version found";
+  if ($conf_ver != "1") {
+    die "Error: Config file: Can only parse config Version v=1";
+  }
+  debug("Config ini Version v=$conf_ver");
+
+  foreach my $section (keys %{$ini_config}) {
+    next if $section eq "Version";
+    my $title = $section;
     debug(2, "Title: '$title'");
+    my $dir = $ini_config->{$section}->{"dir"} or
+      die "Error: Config file: No dir found in section '$section'";
     debug(2, "Dir: '$dir'");
     push(@dirs, $dir);
   }
