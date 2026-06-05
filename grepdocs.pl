@@ -192,7 +192,7 @@ my $filter = "";
 # Default ini config.
 my $default_config = Config::Tiny->new({
   "MyDocs" => { "dir" => "/path/to/git/mydocs/docs" },
-  "Title" => { "dir" => "/path/to/docs/dir" },
+  "Title" => { "dir" => "/path/to/dir/docs" },
   "Version" => { "v" => 1 },
 });
 
@@ -227,8 +227,9 @@ sub main() {
     'default-config' => \$opt_print_default_config,
     'verbose|v+' => \$verbose,
     'version' => sub { Getopt::Long::VersionMessage() },
-    'help|-h|-?' => sub { usage(); exit 0 },
-  );
+    'help|h|-?' => sub { usage(); exit 0 },
+  ) or die "Error with options\n";
+
   debug(2, "Verbose level: $verbose");
   debug(4, "OSNAME $OSNAME");
 
@@ -323,9 +324,9 @@ sub get_config {
     die "Error: Config file: " . Config::Tiny->errstr;
 
   my $conf_ver = $ini_config->{"Version"}->{"v"} or
-    die "Error: Config file: No valid Version found";
+    die "Error: Config file: No valid Version found\n";
   if ($conf_ver != "1") {
-    die "Error: Config file: Can only parse config Version v=1";
+    die "Error: Config file: Can only parse config Version v=1\n";
   }
   debug("Config ini Version v=$conf_ver");
 
@@ -334,7 +335,7 @@ sub get_config {
     my $title = $section;
     debug(2, "Title: '$title'");
     my $dir = $ini_config->{$section}->{"dir"} or
-      die "Error: Config file: No dir found in section '$section'";
+      die "Error: Config file: No dir found in section '$section'\n";
     debug(2, "Dir: '$dir'");
     push(@dirs, $dir);
   }
