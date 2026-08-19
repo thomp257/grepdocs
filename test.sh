@@ -8,7 +8,7 @@ function error() {
 
 
 function main() {
-  if [[ ! -e test.sh ]]; then
+  if [[ ! -e test.sh ]] || [[ ! -d lib ]] || [[ ! -d t ]]; then
     error "Not in project rootdir. Change to that dir"
     exit 1
   fi
@@ -17,15 +17,33 @@ function main() {
   unset PERL5LIB
   export PERL5LIB="$ROOTDIR/lib"
 
-  test_grepdocs
+  case ${1:-all} in
+    "grepdocs"|"all")
+      test_grepdocs
+      ;;&
+    "publish"|"all")
+      test_publish
+      ;;&
+    "grepdocs"|"publish"|"all")
+      # Catch all good args.
+      ;;
+    *)
+      error "Unsupported test: $1"
+      exit 1
+      ;;
+  esac
 
-  echo "All tests pass"
-  echo "Have a nice day"
+  echo "========================================"
+  echo "All tests pass!"
+  echo "========================================"
+  echo "Have a nice day."
 }
 
 
 function test_grepdocs() {
-  # Make test config
+  echo "Test grepdocs.pl"
+
+  # Configure test config
   cat << EOL > t/grepdocs.ini
 [TestDocs]
 dir=$ROOTDIR/t/docs
@@ -37,11 +55,25 @@ EOL
   # Run tests
   echo "Test printing default config"
   $ROOTDIR/grepdocs.pl --config t/grepdocs.ini --default-config > /dev/null
+  echo "Done"
 
   echo "Test grep"
   $ROOTDIR/grepdocs.pl --config t/grepdocs.ini foobar
+  echo "Done"
 
-  echo "All grepdocs tests pass"
+  echo "All grepdocs.pl tests pass"
+}
+
+
+function test_publish() {
+  echo "Test publish.pl"
+
+  # Run tests
+  echo "Test --help"
+  $ROOTDIR/publish.pl --help
+  echo "Done"
+
+  echo "All publish.pl tests pass"
 }
 
 
