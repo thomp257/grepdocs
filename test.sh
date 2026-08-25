@@ -53,8 +53,12 @@ v=1
 EOL
 
   # Run tests
+  echo "Test --help"
+  $ROOTDIR/grepdocs.pl --help > /dev/null
+  echo "Done"
+
   echo "Test printing default config"
-  $ROOTDIR/grepdocs.pl --config t/grepdocs.ini --default-config > /dev/null
+  $ROOTDIR/grepdocs.pl --default-config > /dev/null
   echo "Done"
 
   echo "Test grep"
@@ -70,7 +74,11 @@ function test_publish() {
 
   # Run tests
   echo "Test --help"
-  $ROOTDIR/publish.pl --help
+  $ROOTDIR/publish.pl --help > /dev/null
+  echo "Done"
+
+  echo "Test printing default config"
+  $ROOTDIR/publish.pl --default-config > /dev/null
   echo "Done"
 
   echo "All publish.pl tests pass"
