@@ -12,25 +12,16 @@ use builtin qw(trim);
 use File::Basename qw(basename);
 use File::Spec::Functions qw(catfile);
 use Getopt::Long qw(:config bundling);
-use Config::Tiny;
+use grepdocs;
 
-our $VERSION = "1.20260526.0";
-my $verbose = 0;
-my $config_file = catfile( ($ENV{"HOME"}, ".config"), "grepdocs.ini");
 # Valid doc file extensions to search.
 my $fileext_regex = join("|", qw(.md .markdown .txt .yaml .yml .sh .bash .conf
-                                 .j2 .json .rst));
-my $filter = "";
-# Default ini config.
-my $default_config = Config::Tiny->new({
-  "MyDocs" => { "dir" => "/path/to/git/mydocs/docs" },
-  "Title" => { "dir" => "/path/to/dir/docs" },
-  "Version" => { "v" => 1 },
-});
+                                 .j2 .json .rst .py .pl));
+my $opt_filter = "";
+my $prog = basename($0);
 
 
 sub usage() {
-  my $prog = basename($0);
   print <<EOL
   $prog <pattern>
 
@@ -57,12 +48,12 @@ sub main() {
     'edit|e' => \$opt_edit,
     'config=s' => \$config_file,
     'default-config' => \$opt_print_default_config,
-    'verbose|v+' => \$verbose,
-    'version' => sub { Getopt::Long::VersionMessage() },
+    'verbose|v+' => \$opt_verbose,
+    'version' => sub { print "$prog $VERSION\n"; exit 0 },
     'help|h|-?' => sub { usage(); exit 0 },
   ) or die "Error with options\n";
 
-  debug(2, "Verbose level: $verbose");
+  debug(2, "Verbose level: $opt_verbose");
   debug(4, "OSNAME $OSNAME");
 
   if ($opt_print_default_config) {
@@ -80,12 +71,13 @@ sub main() {
   my @results;
 
   # Get files from each dir in config
-  @dirs = get_config();
+  my $ini_config = get_config();
+  @dirs = get_dirs($ini_config);
   debug("Found " . scalar(@dirs) . " dirs in config");
 
   debug("Get files");
   foreach my $dir (@dirs) {
-    push(@files, get_files($dir));
+    push(@files, get_files($dir, $fileext_regex));
   }
 
   debug("Search");
@@ -145,71 +137,6 @@ sub main() {
     debug(2, "cmd: @cmd");
     exec { $cmd[0] } @cmd or
       die "Cannot exec edit command: $OS_ERROR";
-  }
-}
-
-
-sub get_config {
-  my @dirs = ();
-  debug("Parse config");
-  my $ini_config = Config::Tiny->read($config_file) or
-    die "Error: Config file: " . Config::Tiny->errstr;
-
-  my $conf_ver = $ini_config->{"Version"}->{"v"} or
-    die "Error: Config file: No valid Version found\n";
-  if ($conf_ver != "1") {
-    die "Error: Config file: Can only parse config Version v=1\n";
-  }
-  debug("Config ini Version v=$conf_ver");
-
-  foreach my $section (keys %{$ini_config}) {
-    next if $section eq "Version";
-    my $title = $section;
-    debug(2, "Title: '$title'");
-    my $dir = $ini_config->{$section}->{"dir"} or
-      die "Error: Config file: No dir found in section '$section'\n";
-    debug(2, "Dir: '$dir'");
-    push(@dirs, $dir);
-  }
-  return @dirs;
-}
-
-
-sub get_files {
-  my $dir = shift;
-  my @ret;
-
-  debug(2, "Walk '$dir'");
-  opendir(my $dh, $dir) or
-    die "Cannot open dir '$dir': $OS_ERROR";
-  foreach my $file (readdir($dh)) {
-    next if (grep(/^$file$/, (".",  "..", ".git")));
-    # Get abs_path for this file.
-    my $this_file = catfile($dir, $file);
-    if (-d $this_file) {
-      # Recursive walk down dir.
-      push(@ret, get_files($this_file));
-    } elsif (-f $this_file) {
-      debug(3, "Get file '$file'");
-      if ($file =~ /$fileext_regex$/) {
-        push(@ret, $this_file);
-      }
-    }
-  }
-  closedir($dh);
-  debug(2, "Walk complete '$dir'");
-  return @ret;
-}
-
-
-sub debug {
-  my ($level, $msg) = @_;
-  if (not $msg) {
-    $msg = $level;
-    $level = 1;
-  }
-  if ($verbose >= $level) {
-    print "Debug$level: $msg\n"
   }
 }
 

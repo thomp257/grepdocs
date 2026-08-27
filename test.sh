@@ -1,10 +1,5 @@
 #!/bin/bash
-
 set -eu
-
-function error() {
-  echo "Error: $*" 1>&2;
-}
 
 
 function main() {
@@ -14,8 +9,11 @@ function main() {
   fi
   ROOTDIR=$PWD
 
+  # Set perl lib to just this project's contents.
   unset PERL5LIB
   export PERL5LIB="$ROOTDIR/lib"
+
+  make_test_config
 
   case ${1:-all} in
     "grepdocs"|"all")
@@ -40,30 +38,34 @@ function main() {
 }
 
 
-function test_grepdocs() {
-  echo "Test grepdocs.pl"
-
-  # Configure test config
+function make_test_config() {
+  # Make a config file for testing.
   cat << EOL > t/grepdocs.ini
 [TestDocs]
 dir=$ROOTDIR/t/docs
+publish=$ROOTDIR/t/publish/html
 
 [Version]
-v=1
+v=2
 EOL
+}
+
+
+function test_grepdocs() {
+  echo "Test grepdocs.pl"
 
   # Run tests
-  echo "Test --help"
+  iecho "Test --version and --help"
+  $ROOTDIR/grepdocs.pl --version
   $ROOTDIR/grepdocs.pl --help > /dev/null
-  echo "Done"
 
-  echo "Test printing default config"
+  iecho "Test printing default config"
   $ROOTDIR/grepdocs.pl --default-config > /dev/null
-  echo "Done"
 
-  echo "Test grep"
-  $ROOTDIR/grepdocs.pl --config t/grepdocs.ini foobar
-  echo "Done"
+  iecho "Test grep"
+  $ROOTDIR/grepdocs.pl --config t/grepdocs.ini foobar | \
+    grep -q "t/docs/doc2.md" \
+    || fail
 
   echo "All grepdocs.pl tests pass"
 }
@@ -73,15 +75,35 @@ function test_publish() {
   echo "Test publish.pl"
 
   # Run tests
-  echo "Test --help"
+  iecho "Test --version and --help"
+  $ROOTDIR/publish.pl --version
   $ROOTDIR/publish.pl --help > /dev/null
-  echo "Done"
 
-  echo "Test printing default config"
+  iecho "Test printing default config"
   $ROOTDIR/publish.pl --default-config > /dev/null
-  echo "Done"
+
+  iecho "Test publish all files"
+  $ROOTDIR/publish.pl  --config t/grepdocs.ini -vv
 
   echo "All publish.pl tests pass"
+}
+
+
+function error() {
+  echo "Error: $*" 1>&2;
+}
+
+
+function fail() {
+  iecho "Failed! $*";
+  exit 1;
+}
+
+
+function iecho() {
+  # Indent message 2 spaces.
+  local indent="  "
+  echo "${indent}$@"
 }
 
 
