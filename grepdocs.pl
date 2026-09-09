@@ -10,7 +10,6 @@ use English;
 no warnings qw(experimental::builtin);
 use builtin qw(trim);
 use File::Basename qw(basename);
-use File::Spec::Functions qw(catfile);
 use Getopt::Long qw(:config bundling);
 use grepdocs;
 

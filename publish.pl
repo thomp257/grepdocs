@@ -10,6 +10,8 @@ use warnings;
 use File::Basename qw(basename);
 use File::Copy qw(copy);
 use File::Glob qw(:bsd_glob);
+use File::Path qw(mkpath);
+use File::Spec::Functions qw(catdir splitpath);
 use Getopt::Long qw(:config bundling);
 use Markdown::Perl;
 use grepdocs;
@@ -39,7 +41,7 @@ EOL
 
 
 sub main() {
-  # Args
+  # Args; No debug output until verbose arg.
   my $opt_print_default_config = 0;
   my $opt_publish_all = 0;
   my $opt_filter = "";
@@ -52,7 +54,7 @@ sub main() {
     'version' => sub { print "$prog $VERSION\n"; exit 0 },
     'help|h|-?' => sub { usage(); exit 0 },
   ) or die "Error with options\n";
-
+  debug(2, "Args");
   debug(2, "Verbose level: $opt_verbose");
 
   if ($opt_print_default_config) {
@@ -60,37 +62,85 @@ sub main() {
     exit 0;
   }
 
+  debug(2, "Start");
   my @dirs = ();
   my @files = ();
 
-  # Get files from each dir in config
+  # Get each section in config
+  debug(2, "Config");
   my $ini_config = get_config();
-  @dirs = get_dirs($ini_config);
-  debug("Found " . scalar(@dirs) . " dirs in config");
+  my @sections = get_sections($ini_config);
+  debug("Found " . scalar(@sections) . " sections in config");
 
   debug("Get files");
-  foreach my $dir (@dirs) {
-    push(@files, get_files($dir, $fileext_regex));
+  foreach my $section (@sections) {
+    debug("Section $section");
+    my $dest_dir = $ini_config->{$section}->{"publish"};
+    if (! -d $dest_dir || ! -w $dest_dir) {
+      error("Cannot write to publish dir $dest_dir");
+      next;
+    }
+
+    my $src_dir = $ini_config->{$section}->{"dir"};
+    push(@files, get_files($src_dir, $fileext_regex));
+    debug("Found " . scalar(@files) . " files in section");
+
+    foreach my $filename (@files) {
+      # Construct the html file name and path.
+      my $html_dest = $filename;
+
+      # Get the section part of the path.
+      $html_dest =~ s/\Q$src_dir\E//;
+      debug(3, "html_dest without src_dir: $html_dest");
+      my $section_part = (File::Spec->splitpath($html_dest))[1];
+      debug(3, "section_part $section_part");
+      my $section_dir = catdir($dest_dir, $section_part);
+      debug(3, "section_dir: $section_dir");
+      if (! -d $section_dir) {
+        debug("Make section_dir: $section_dir");
+        mkpath($section_dir);
+      }
+
+      # Make the html file extension.
+      $html_dest =~ s/$fileext_regex/.html/;
+      debug(3, "file with html extension: $html_dest");
+
+      # Construct the path.
+      my $html_file = catdir($dest_dir, $html_dest);
+
+      # Only publish if src is newer than dst.
+      if ( -r $html_file ) {
+        # Get mtime for each file.
+        my $src_markdown_mtime = (stat($filename))[9];
+        my $dst_html_mtime = (stat($html_file))[9];
+        if ($dst_html_mtime > $src_markdown_mtime) {
+          my $html_filename = (File::Spec->splitpath($html_dest))[2];
+          debug("File " . $section_part . $html_filename . " is newer than markdown. Next file");
+          next;
+        }
+      }
+
+      debug(2, "Process $filename to $html_file");
+      publish($filename, $html_file);
+    }
   }
-  debug(2, "Files @files");
+}
 
-  foreach my $filename (@files) {
-    debug(2, "Process $filename");
-  }
 
-  # # Map source markdown to destination.
-  # my %map = (
-  #   "Test.md" => "/Docs",
-  #   "Markdown.md" => "/Docs",
-  # );
+sub publish() {
+  my ($source, $dest) = @_;
 
-  # # Dest paths.
-  # my $dest_root = "$HOME/tmp";
-  # my $dest_html = "/html";
-  # my $dest = $dest_root . $dest_html . "/";
+  # Get markdown.
+  my ($title, $markdown) = get_markdown($source);
 
-  # # Get source and destination.
-  # my $dest = $map{$source} or die "Error: Bad source name";
+  # Get html content.
+  my $html = convert_to_html($title, $markdown);
+
+  print("Publish: $dest\n");
+
+  open(my $fh, ">", $dest) or die "Error: Open $dest failed: $!";
+  print $fh $html;
+  close($fh);
 }
 
 
@@ -157,25 +207,6 @@ sub convert_to_html() {
 EOL
 ;
   return $html
-}
-
-
-sub publish() {
-  my ($source, $dest, $html) = @_;
-  # Publish markdown file.
-  my $md_dest = $dest . "/" . $source;
-  print("Publish: $md_dest\n");
-  #copy($source, $dest . $md_dest) or die "Error: Copy failed: $!";
-
-  # Publish html file.
-  my $html_filename = $source;
-  $html_filename =~ s/\.md$/.html/;
-  my $html_dest = $dest . "/" . $html_filename;
-  print("Publish: $html_dest\n");
-
-  #open($fh, ">", $dest . $html_dest) or die "Error: Open failed: $!";
-  #print $fh $html;
-  #close($fh);
 }
 
 

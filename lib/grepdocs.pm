@@ -7,7 +7,7 @@ use Config::Tiny;
 use File::Spec::Functions qw(catfile);
 
 our @EXPORT = qw($VERSION $config_file $opt_verbose $default_config
-                 get_config get_dirs get_files debug);
+                 get_config get_dirs get_files get_sections debug);
 
 our $VERSION = "1.20260827.0";
 our $config_file = catfile( ($ENV{"HOME"}, ".config"), "grepdocs.ini");
@@ -16,11 +16,11 @@ our $default_config = Config::Tiny->new({
     "dir" => "/path/to/git/mydocs/docs",
     "publish" => "$ENV{'HOME'}/tmp/html",
   },
-  "Title" => {
+  "SectionName" => {
     "dir" => "/path/to/markdown/files",
     "publish" => "$ENV{'HOME'}/tmp/html",
   },
-  "Title/section" => {
+  "SectionName/section" => {
     "dir" => "/path/to/markdown/some_section",
     "publish" => "$ENV{'HOME'}/tmp/html",
   },
@@ -48,15 +48,26 @@ sub get_config {
 };
 
 
+sub get_sections {
+  debug("Get sections");
+  my $ini_config = shift;
+
+  my @sections = ();
+  foreach my $section (keys %{$ini_config}) {
+    next if $section eq "Version";
+    debug(2, "Section '$section'");
+    push(@sections, $section);
+  }
+  return @sections;
+}
+
+
 sub get_dirs {
   debug("Get dirs");
   my $ini_config = shift;
 
   my @dirs = ();
-  foreach my $section (keys %{$ini_config}) {
-    next if $section eq "Version";
-    my $title = $section;
-    debug(2, "Title: '$title'");
+  foreach my $section (get_sections $ini_config) {
     my $dir = $ini_config->{$section}->{"dir"} or
       die "Error: Config file: No dir found in section '$section'\n";
     debug(2, "Dir: '$dir'");

@@ -16,13 +16,13 @@ function main() {
   make_test_config
 
   case ${1:-all} in
-    "grepdocs"|"all")
+    grepdocs*|"all")
       test_grepdocs
       ;;&
-    "publish"|"all")
+    publish*|"all")
       test_publish
       ;;&
-    "grepdocs"|"publish"|"all")
+    grepdocs*|publish*|all)
       # Catch all good args.
       ;;
     *)
@@ -64,7 +64,8 @@ function test_grepdocs() {
 
   iecho "Test grep"
   $ROOTDIR/grepdocs.pl --config t/grepdocs.ini foobar | \
-    grep -q "t/docs/doc2.md" \
+    grep -cE "t/docs/doc2.md|t/docs/section1/foobar.md" | \
+    grep -q "2" \
     || fail
 
   echo "All grepdocs.pl tests pass"
@@ -83,7 +84,22 @@ function test_publish() {
   $ROOTDIR/publish.pl --default-config > /dev/null
 
   iecho "Test publish all files"
-  $ROOTDIR/publish.pl  --config t/grepdocs.ini -vv
+  # Clean-up any previous test results.
+  rm -rf t/publish/html/*
+
+  # Publish all docs.
+  $ROOTDIR/publish.pl --config t/grepdocs.ini | \
+    grep -cE "t/publish/html/doc3.html|t/publish/html/section1/foobar.html" | \
+    grep -q "2" \
+    || fail
+
+  # Verify publish skips newer files.
+  $ROOTDIR/publish.pl --config t/grepdocs.ini -v | \
+    grep -q "is newer than markdown" \
+    || fail
+
+  iecho "Test publish made html"
+  grep -q "<title>Test Doc 1</title>" t/publish/html/doc1.html || fail
 
   echo "All publish.pl tests pass"
 }
