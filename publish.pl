@@ -63,10 +63,6 @@ sub main() {
   }
 
   debug(2, "Start");
-  my @dirs = ();
-  my @files = ();
-
-  # Get each section in config
   debug(2, "Config");
   my $ini_config = get_config();
   my @sections = get_sections($ini_config);
@@ -74,16 +70,20 @@ sub main() {
 
   debug("Get files");
   foreach my $section (@sections) {
+    my @files = ();
     debug("Section $section");
     my $dest_dir = $ini_config->{$section}->{"publish"};
-    if (! -d $dest_dir || ! -w $dest_dir) {
-      error("Cannot write to publish dir $dest_dir");
+    if (! defined($dest_dir) ) {
+      debug("No publish setting found. Nothing to publish. Next");
       next;
+    }
+    if (! -d $dest_dir || ! -w $dest_dir) {
+      die "Cannot write to publish dir $dest_dir";
     }
 
     my $src_dir = $ini_config->{$section}->{"dir"};
     push(@files, get_files($src_dir, $fileext_regex));
-    debug("Found " . scalar(@files) . " files in section");
+    debug("Found " . scalar(@files) . " files in section $section");
 
     foreach my $filename (@files) {
       # Construct the html file name and path.
@@ -191,6 +191,7 @@ sub convert_to_html() {
     border: 1px solid #333333;
   }
   pre code {
+    display: block;
     font-family: monospace;
     font-size: 85%;
     padding: 16px;

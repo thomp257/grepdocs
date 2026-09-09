@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eu
+set -euo pipefail
 
 
 function main() {
@@ -45,6 +45,13 @@ function make_test_config() {
 dir=$ROOTDIR/t/docs
 publish=$ROOTDIR/t/publish/html
 
+[NextTestDocs]
+dir=$ROOTDIR/t/docs2
+publish=$ROOTDIR/t/publish/html
+
+[NoPublish]
+dir=$ROOTDIR/t/docs/empty
+
 [Version]
 v=2
 EOL
@@ -64,8 +71,8 @@ function test_grepdocs() {
 
   iecho "Test grep"
   $ROOTDIR/grepdocs.pl --config t/grepdocs.ini foobar | \
-    grep -cE "t/docs/doc2.md|t/docs/section1/foobar.md" | \
-    grep -q "2" \
+    wc -l | \
+    grep -q "3" \
     || fail
 
   echo "All grepdocs.pl tests pass"
@@ -88,12 +95,13 @@ function test_publish() {
   rm -rf t/publish/html/*
 
   # Publish all docs.
+  # - Check for 2 specific publishes.
   $ROOTDIR/publish.pl --config t/grepdocs.ini | \
     grep -cE "t/publish/html/doc3.html|t/publish/html/section1/foobar.html" | \
     grep -q "2" \
     || fail
 
-  # Verify publish skips newer files.
+  iecho "Verify publish skips newer files"
   $ROOTDIR/publish.pl --config t/grepdocs.ini -v | \
     grep -q "is newer than markdown" \
     || fail

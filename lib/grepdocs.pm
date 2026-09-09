@@ -9,7 +9,7 @@ use File::Spec::Functions qw(catfile);
 our @EXPORT = qw($VERSION $config_file $opt_verbose $default_config
                  get_config get_dirs get_files get_sections debug);
 
-our $VERSION = "1.20260827.0";
+our $VERSION = "1.20260910.0";
 our $config_file = catfile( ($ENV{"HOME"}, ".config"), "grepdocs.ini");
 our $default_config = Config::Tiny->new({
   "MyDocs" => {
