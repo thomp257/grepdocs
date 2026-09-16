@@ -23,9 +23,10 @@ my $fileext_regex = join("|", qw(.md .markdown));
 
 sub usage() {
   print <<EOL
-  $prog <filename.md ...>
+  $prog
 
   --all                Publish all available files (default).
+  --clobber            Publish document even if src is older than dst.
   --filter|-f <regex>  Publish all files whose full PATH match regex.
   --config <file>      Use this config file.
                        Default: '$config_file'.
@@ -44,9 +45,11 @@ sub main() {
   # Args; No debug output until verbose arg.
   my $opt_print_default_config = 0;
   my $opt_publish_all = 0;
+  my $opt_publish_clobber = 0;
   my $opt_filter = "";
   GetOptions (
     'all' => \$opt_publish_all,
+    'clobber' => \$opt_publish_clobber,
     'config=s' => \$config_file,
     'default-config' => \$opt_print_default_config,
     'filter|f=s' => \$opt_filter,
@@ -109,7 +112,7 @@ sub main() {
       my $html_file = catdir($dest_dir, $html_dest);
 
       # Only publish if src is newer than dst.
-      if ( -r $html_file ) {
+      if ( -r $html_file && ! $opt_publish_clobber ) {
         # Get mtime for each file.
         my $src_markdown_mtime = (stat($filename))[9];
         my $dst_html_mtime = (stat($html_file))[9];
@@ -175,6 +178,11 @@ sub convert_to_html() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>$title</title>
   <style>
+  body {
+    width: auto;
+    max-width: 1024px;
+    padding: 0 8px;
+  }
   code {
     background-color: #f6f8fa;
     color: #24292f;
@@ -185,16 +193,16 @@ sub convert_to_html() {
   pre {
     background-color: #f6f8fa;
     color: #24292f;
-    padding: 16px;
-    border-radius: 8px;
-    padding: 16px 0;
+    padding: 8px;
+    border-radius: 4px;
+    padding: 0 4px;
     border: 1px solid #333333;
   }
   pre code {
     display: block;
     font-family: monospace;
     font-size: 85%;
-    padding: 16px;
+    padding: 8px;
     line-height: 1.5;
     overflow-x: auto;
     white-space: pre;
