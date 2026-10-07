@@ -11,5 +11,5 @@ fi
 
 cp -vr lib/* "$THIS_LIBINSTALL"
 
-installer.sh grepdocs.pl
-installer.sh publish.pl
+installer.sh grepdocs.pl $HOME/bin/grepdocs.pl
+installer.sh publish.pl $HOME/bin/publish.pl
