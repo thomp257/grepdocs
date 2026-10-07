@@ -9,7 +9,15 @@ if [[ ! -d "$THIS_LIBINSTALL" ]]; then
   exit 1
 fi
 
-cp -vr lib/* "$THIS_LIBINSTALL"
+for FILE in $(find lib -depth -type f | sed 's#lib/##');
+do
+    installer.sh lib/$FILE "$THIS_LIBINSTALL/$FILE"
+    echo -n '*'
+done
 
 installer.sh grepdocs.pl $HOME/bin/grepdocs.pl
+echo -n '*'
 installer.sh publish.pl $HOME/bin/publish.pl
+echo -n '*'
+
+echo " Done"
