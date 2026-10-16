@@ -69,7 +69,12 @@ function test_grepdocs() {
   iecho "Test printing default config"
   $ROOTDIR/grepdocs.pl --default-config > /dev/null
 
-  iecho "Test grep"
+  iecho "Test grep filename is first"
+  $ROOTDIR/grepdocs.pl --config t/grepdocs.ini testdoc2 | \
+    head -n1 | grep -q "t/docs2/TestDoc2.md" \
+    || fail
+
+  iecho "Test grep search contents"
   $ROOTDIR/grepdocs.pl --config t/grepdocs.ini foobar | \
     wc -l | \
     grep -q "3" \

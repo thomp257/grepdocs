@@ -90,7 +90,10 @@ sub main() {
       debug(4, "Search file name: $file");
       if (basename($file) =~ /$search_for/i) {
         debug("Filename match");
-        push(@filename_results, $file);
+        if ( (! grep { $_ eq $file } @filename_results) &&
+             (! grep { $_ eq $file } @search_results) ) {
+          push(@filename_results, $file);
+        }
         next;
       }
 
@@ -100,7 +103,10 @@ sub main() {
       while (my $line = <$fh>) {
         if ($line =~ /$search_for/i) {
           debug("Content match");
-          push(@search_results, $file);
+          if ( (! grep { $_ eq $file } @filename_results) &&
+               (! grep { $_ eq $file } @search_results) ) {
+            push(@search_results, $file);
+          }
           last;
         }
       }
